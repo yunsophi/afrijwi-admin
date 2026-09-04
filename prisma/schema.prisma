@@ -1,0 +1,441 @@
+// AFRIJWI Farmer Support & Trainer Matching — Admin/Trainer portal schema
+// MVP datastore: SQLite (Pilot scale). Migrate `datasource.provider` to
+// "postgresql" when the Pilot outgrows a single-file database — the models
+// below are provider-agnostic.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Auth
+// ---------------------------------------------------------------------------
+
+enum Role {
+  ADMIN
+  TRAINER
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  role         Role
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  trainer Trainer?
+}
+
+// ---------------------------------------------------------------------------
+// Trainer
+// ---------------------------------------------------------------------------
+
+enum TrainerType {
+  AGRICULTURE_STUDENT
+  VETERINARY_ANIMAL_SCIENCE_STUDENT
+  AGRICULTURE_PROFESSIONAL
+  VETERINARIAN
+  AGRICULTURAL_EXTENSION_WORKER
+  EXPERIENCED_FARMER
+  AGRIBUSINESS_PROFESSIONAL
+  RESEARCHER
+  LECTURER_TEACHER
+  OTHER
+}
+
+enum Expertise {
+  CROP_PRODUCTION
+  CROP_DISEASES
+  PEST_MANAGEMENT
+  SOIL_FERTILIZER
+  IRRIGATION
+  LIVESTOCK
+  ANIMAL_HEALTH
+  POULTRY
+  DAIRY_FARMING
+  PIG_FARMING
+  GOAT_FARMING
+  AGRIBUSINESS
+  AGRICULTURAL_TECHNOLOGY
+  POST_HARVEST_PROCESSING
+  OTHER
+}
+
+enum SupportMethod {
+  WHATSAPP
+  PHONE
+  ONLINE_MEETING
+  FARM_VISIT
+  TRAINING_WORKSHOP
+}
+
+enum Availability {
+  AVAILABLE
+  TEMPORARILY_UNAVAILABLE
+}
+
+enum ApplicationStatus {
+  SUBMITTED
+  UNDER_REVIEW
+  APPROVED
+  REJECTED
+}
+
+enum VerificationStatus {
+  NOT_VERIFIED
+  VERIFIED
+  REJECTED
+}
+
+enum PilotIncentiveStatus {
+  NOT_ELIGIBLE
+  PENDING
+  APPROVED
+  PAID
+}
+
+model Trainer {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Basic info
+  fullName         String
+  phone            String
+  whatsapp         String
+  email            String
+  district         String
+  sector           String
+  preferredLanguage String @default("English")
+
+  // Background
+  trainerType           TrainerType
+  organization          String?
+  fieldOfStudy          String?
+  occupation            String?
+  yearsExperience       Int?
+  experienceDescription String?
+
+  // Expertise / methods (stored as JSON-encoded string arrays — SQLite has no native array type)
+  expertise      String // JSON: Expertise[]
+  supportMethods String // JSON: SupportMethod[]
+
+  // Availability & capacity
+  availability      Availability @default(AVAILABLE)
+  maxActiveCases    Int          @default(2)
+
+  // Verification
+  applicationStatus   ApplicationStatus   @default(SUBMITTED)
+  verificationStatus  VerificationStatus  @default(NOT_VERIFIED)
+  verificationDate    DateTime?
+  verifiedBy          String?
+  adminNotes          String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  assignments    TrainerAssignment[]
+  advices        Advice[]
+  farmVisits     FarmVisit[]
+  feedbacks      Feedback[]
+  payments       Payment[]
+  pilotIncentive PilotIncentive?
+}
+
+// ---------------------------------------------------------------------------
+// Farmer
+// ---------------------------------------------------------------------------
+
+enum FarmingType {
+  CROPS
+  LIVESTOCK
+  BOTH
+}
+
+model Farmer {
+  id                String      @id @default(cuid())
+  name              String
+  phone             String
+  whatsapp          String
+  district          String
+  sector            String
+  preferredLanguage String      @default("Kinyarwanda")
+  farmingType       FarmingType
+  mainCrops         String?
+  mainLivestock     String?
+  notes             String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  cases Case[]
+}
+
+// ---------------------------------------------------------------------------
+// Case (the central entity — one concrete farmer problem)
+// ---------------------------------------------------------------------------
+
+enum CaseCategory {
+  CROP
+  LIVESTOCK
+  POULTRY
+  ANIMAL_HEALTH
+  PLANT_HEALTH
+  SOIL
+  IRRIGATION
+  PEST_DISEASE
+  AGRIBUSINESS
+  OTHER
+}
+
+enum Urgency {
+  LOW
+  NORMAL
+  HIGH
+}
+
+enum CaseStatus {
+  NEW
+  MATCHING
+  SENT_TO_TRAINER
+  ACCEPTED
+  IN_PROGRESS
+  ADVICE_SUBMITTED
+  AFRIJWI_REVIEW
+  FARMER_SUPPORTED
+  COMPLETED
+  DECLINED
+  NO_RESPONSE
+  ESCALATED
+  VISIT_REQUIRED
+  CANCELLED
+}
+
+enum CompensationStatus {
+  NOT_APPLICABLE
+  PENDING
+  APPROVED
+  PAID
+}
+
+model Case {
+  id       String @id @default(cuid())
+  farmerId String
+  farmer   Farmer @relation(fields: [farmerId], references: [id])
+
+  // Problem
+  category        CaseCategory
+  title           String
+  description     String
+  originalMessage String?
+  photoUrl        String?
+  urgency         Urgency      @default(NORMAL)
+
+  // Location
+  district String
+  sector   String
+  village  String?
+
+  // Matching requirements
+  requiredExpertise    String  // JSON: Expertise[]
+  farmVisitRequired    Boolean @default(false)
+  preferredLocation    String?
+  languageRequirement  String?
+  otherRequirements    String?
+
+  status CaseStatus @default(NEW)
+
+  // Future Trainer compensation (per-Case). Set only once support is completed —
+  // never on registration or on Accept alone.
+  compensationStatus  CompensationStatus @default(NOT_APPLICABLE)
+  compensationAmount  Int?
+  paymentDate         DateTime?
+  paymentReference    String?
+  paymentStatus       CompensationStatus @default(NOT_APPLICABLE)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  assignments TrainerAssignment[]
+  advices     Advice[]
+  farmVisit   FarmVisit?
+  feedback    Feedback?
+  payments    Payment[]
+}
+
+// ---------------------------------------------------------------------------
+// TrainerAssignment — links a Case to a candidate/selected Trainer
+// ---------------------------------------------------------------------------
+
+enum AssignmentStatus {
+  SENT
+  ACCEPTED
+  DECLINED
+  NO_RESPONSE
+  WITHDRAWN
+}
+
+enum DeclineReason {
+  TOO_BUSY
+  OUTSIDE_EXPERTISE
+  TOO_FAR
+  CANNOT_VISIT
+  OTHER
+}
+
+model TrainerAssignment {
+  id        String @id @default(cuid())
+  caseId    String
+  case      Case   @relation(fields: [caseId], references: [id])
+  trainerId String
+  trainer   Trainer @relation(fields: [trainerId], references: [id])
+
+  status        AssignmentStatus @default(SENT)
+  declineReason DeclineReason?
+  declineNote   String?
+
+  assignedAt  DateTime  @default(now())
+  respondedAt DateTime?
+}
+
+// ---------------------------------------------------------------------------
+// Advice — a Trainer's submitted response to a Case
+// ---------------------------------------------------------------------------
+
+enum FarmVisitNeeded {
+  NO
+  MAYBE
+  YES
+}
+
+enum AdminReviewStatus {
+  PENDING
+  SENT_TO_FARMER
+  NEEDS_REVISION
+  ESCALATED
+}
+
+model Advice {
+  id        String @id @default(cuid())
+  caseId    String
+  case      Case   @relation(fields: [caseId], references: [id])
+  trainerId String
+  trainer   Trainer @relation(fields: [trainerId], references: [id])
+
+  assessment           String
+  recommendedAction    String
+  additionalQuestions  String?
+
+  farmVisitNeeded          FarmVisitNeeded @default(NO)
+  farmVisitExpertise       String?
+  farmVisitTrainerType     String?
+  farmVisitInstructions    String?
+
+  additionalNotes String?
+
+  adminReviewStatus AdminReviewStatus @default(PENDING)
+
+  submittedAt DateTime @default(now())
+}
+
+// ---------------------------------------------------------------------------
+// FarmVisit
+// ---------------------------------------------------------------------------
+
+enum VisitStatus {
+  REQUIRED
+  SEARCHING
+  ASSIGNED
+  SCHEDULED
+  COMPLETED
+  CANCELLED
+}
+
+model FarmVisit {
+  id     String @id @default(cuid())
+  caseId String @unique
+  case   Case   @relation(fields: [caseId], references: [id])
+
+  requiredExpertise  String?
+  assignedTrainerId  String?
+  assignedTrainer    Trainer? @relation(fields: [assignedTrainerId], references: [id])
+
+  visitStatus   VisitStatus @default(REQUIRED)
+  proposedDate  DateTime?
+  completedDate DateTime?
+  notes         String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ---------------------------------------------------------------------------
+// Feedback — Farmer's evaluation of a completed Case
+// ---------------------------------------------------------------------------
+
+enum ProblemAddressed {
+  YES
+  PARTIALLY
+  NO
+}
+
+model Feedback {
+  id        String @id @default(cuid())
+  caseId    String @unique
+  case      Case   @relation(fields: [caseId], references: [id])
+  trainerId String
+  trainer   Trainer @relation(fields: [trainerId], references: [id])
+
+  addressed ProblemAddressed
+  rating    Int? // 1-5
+  comment   String?
+
+  createdAt DateTime @default(now())
+}
+
+// ---------------------------------------------------------------------------
+// Payment — future per-Case Trainer compensation (no live payment integration yet)
+// ---------------------------------------------------------------------------
+
+model Payment {
+  id        String @id @default(cuid())
+  caseId    String
+  case      Case   @relation(fields: [caseId], references: [id])
+  trainerId String
+  trainer   Trainer @relation(fields: [trainerId], references: [id])
+
+  status          CompensationStatus @default(NOT_APPLICABLE)
+  amount          Int?
+  paymentDate     DateTime?
+  paymentReference String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ---------------------------------------------------------------------------
+// PilotIncentive — Early Pilot participation incentive.
+// Deliberately separate from Payment (per-Case compensation): eligibility and
+// amount here are NOT tied to any specific Case, and registering or
+// Accepting a Request never sets this to Approved/Paid on its own.
+// ---------------------------------------------------------------------------
+
+model PilotIncentive {
+  id        String  @id @default(cuid())
+  trainerId String  @unique
+  trainer   Trainer @relation(fields: [trainerId], references: [id])
+
+  eligible    Boolean               @default(false)
+  status      PilotIncentiveStatus  @default(NOT_ELIGIBLE)
+  amount      Int?
+  paymentDate DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
