@@ -114,12 +114,46 @@ export async function updateCaseStatus(caseId: string, status: string) {
   revalidatePath("/admin");
 }
 
-export async function markCaseCompleted(caseId: string) {
+// ---------------------------------------------------------------------------
+// Feedback — collected once, when Admin completes the Case
+// ---------------------------------------------------------------------------
+
+export async function addFeedbackAndCompleteCase(
+  _prev: ActionState,
+  formData: FormData
+): Promise<ActionState> {
   await requireAdminSession();
-  await prisma.case.update({ where: { id: caseId }, data: { status: "COMPLETED" } });
+
+  const caseId = String(formData.get("caseId"));
+  const trainerId = String(formData.get("trainerId"));
+  const addressed = String(formData.get("addressed") ?? "");
+  const ratingRaw = formData.get("rating");
+  const comment = (formData.get("comment") as string) || null;
+
+  if (!trainerId) return { error: "No Trainer is linked to this Case yet." };
+  if (!["YES", "PARTIALLY", "NO"].includes(addressed)) {
+    return { error: "Select whether the Farmer's problem was addressed." };
+  }
+
+  const rating = ratingRaw ? Number(ratingRaw) : null;
+  if (rating !== null && (rating < 1 || rating > 5)) {
+    return { error: "Rating must be between 1 and 5." };
+  }
+
+  await prisma.$transaction([
+    prisma.feedback.upsert({
+      where: { caseId },
+      update: { trainerId, addressed: addressed as never, rating, comment },
+      create: { caseId, trainerId, addressed: addressed as never, rating, comment },
+    }),
+    prisma.case.update({ where: { id: caseId }, data: { status: "COMPLETED" } }),
+  ]);
+
   revalidatePath(`/admin/cases/${caseId}`);
   revalidatePath("/admin/cases");
   revalidatePath("/admin");
+  revalidatePath("/admin/feedback");
+  return { success: true };
 }
 
 // ---------------------------------------------------------------------------

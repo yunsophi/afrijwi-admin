@@ -10,9 +10,10 @@ import {
   enumLabel,
   parseJsonArray,
 } from "@/lib/constants";
-import { markCaseCompleted, createFarmVisitForCase } from "@/lib/actions/admin";
+import { createFarmVisitForCase } from "@/lib/actions/admin";
 import { AdviceReviewActions } from "./AdviceReviewActions";
 import { EscalateForm } from "./EscalateForm";
+import { FeedbackForm } from "./FeedbackForm";
 
 export default async function CaseDetailPage({
   params,
@@ -187,15 +188,24 @@ export default async function CaseDetailPage({
         )
       )}
 
-      {c.status === "FARMER_SUPPORTED" && (
-        <form action={markCaseCompleted.bind(null, c.id)}>
-          <button
-            type="submit"
-            className="rounded-lg bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-700"
-          >
-            Mark Case Completed
-          </button>
-        </form>
+      {c.status === "FARMER_SUPPORTED" && latestAdvice && (
+        <Section title="Complete the Case">
+          <p className="mb-3 text-xs text-slate-500">
+            Recording Feedback marks this Case Completed — this is the only way a Case reaches
+            Completed.
+          </p>
+          <FeedbackForm caseId={c.id} trainerId={latestAdvice.trainerId} />
+        </Section>
+      )}
+
+      {c.feedback && (
+        <Section title="Farmer Feedback">
+          <p className="text-sm text-slate-700">
+            Problem addressed: <span className="font-medium">{c.feedback.addressed}</span>
+            {c.feedback.rating ? ` · ${"★".repeat(c.feedback.rating)} (${c.feedback.rating}/5)` : ""}
+          </p>
+          {c.feedback.comment && <p className="mt-1 text-sm text-slate-600">{c.feedback.comment}</p>}
+        </Section>
       )}
     </div>
   );
