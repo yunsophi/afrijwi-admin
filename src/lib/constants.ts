@@ -90,6 +90,24 @@ export const CASE_STATUS_TONE: Record<string, "neutral" | "info" | "warning" | "
   CANCELLED: "neutral",
 };
 
+export const VISIT_STATUS_LABELS: Record<string, string> = {
+  REQUIRED: "Required",
+  SEARCHING: "Searching",
+  ASSIGNED: "Assigned",
+  SCHEDULED: "Scheduled",
+  COMPLETED: "Completed",
+  CANCELLED: "Cancelled",
+};
+
+export const VISIT_STATUS_TONE_CLASSES: Record<string, string> = {
+  REQUIRED: "bg-tone-neutral-bg text-tone-neutral-text",
+  SEARCHING: "bg-tone-info-bg text-tone-info-text",
+  ASSIGNED: "bg-tone-info-bg text-tone-info-text",
+  SCHEDULED: "bg-tone-warning-bg text-tone-warning-text",
+  COMPLETED: "bg-tone-success-bg text-tone-success-text",
+  CANCELLED: "bg-tone-neutral-bg text-tone-neutral-text",
+};
+
 export const DECLINE_REASON_LABELS: Record<string, string> = {
   TOO_BUSY: "Too busy",
   OUTSIDE_EXPERTISE: "Outside my expertise",

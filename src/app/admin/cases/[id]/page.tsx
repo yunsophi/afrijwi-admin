@@ -5,10 +5,12 @@ import { StatusBadge } from "@/components/StatusBadge";
 import {
   CASE_CATEGORY_LABELS,
   EXPERTISE_LABELS,
+  VISIT_STATUS_LABELS,
+  VISIT_STATUS_TONE_CLASSES,
   enumLabel,
   parseJsonArray,
 } from "@/lib/constants";
-import { markCaseCompleted } from "@/lib/actions/admin";
+import { markCaseCompleted, createFarmVisitForCase } from "@/lib/actions/admin";
 import { AdviceReviewActions } from "./AdviceReviewActions";
 import { EscalateForm } from "./EscalateForm";
 
@@ -42,6 +44,7 @@ export default async function CaseDetailPage({
   const otherTrainers = allTrainers
     .filter((t) => !c.assignments.some((a) => a.trainerId === t.id))
     .map((t) => ({ id: t.id, fullName: t.fullName, trainerType: t.trainerType }));
+  const visitFlaggedByAdvice = c.advices.some((a) => a.farmVisitNeeded !== "NO");
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-6">
@@ -149,6 +152,39 @@ export default async function CaseDetailPage({
             </div>
           ))}
         </Section>
+      )}
+
+      {c.farmVisit ? (
+        <Section title="Farm Visit">
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-slate-700">
+              Status: {VISIT_STATUS_LABELS[c.farmVisit.visitStatus]}
+              {c.farmVisit.proposedDate && ` · ${new Date(c.farmVisit.proposedDate).toLocaleDateString()}`}
+            </p>
+            <span
+              className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${VISIT_STATUS_TONE_CLASSES[c.farmVisit.visitStatus]}`}
+            >
+              {VISIT_STATUS_LABELS[c.farmVisit.visitStatus]}
+            </span>
+          </div>
+          <Link
+            href={`/admin/farm-visits/${c.farmVisit.id}`}
+            className="mt-2 inline-block text-sm font-medium text-brand-600 hover:underline"
+          >
+            Manage Farm Visit →
+          </Link>
+        </Section>
+      ) : (
+        (c.farmVisitRequired || visitFlaggedByAdvice) && (
+          <form action={createFarmVisitForCase.bind(null, c.id)}>
+            <button
+              type="submit"
+              className="rounded-lg border border-slate-200 px-5 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+            >
+              Set Up Farm Visit
+            </button>
+          </form>
+        )
       )}
 
       {c.status === "FARMER_SUPPORTED" && (

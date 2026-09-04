@@ -187,6 +187,8 @@ export async function submitAdvice(
     return { error: "Assessment and Recommended Action are required." };
   }
 
+  const farmVisitExpertise = (formData.get("farmVisitExpertise") as string) || null;
+
   await prisma.$transaction([
     prisma.advice.create({
       data: {
@@ -196,7 +198,7 @@ export async function submitAdvice(
         recommendedAction,
         additionalQuestions: (formData.get("additionalQuestions") as string) || null,
         farmVisitNeeded: farmVisitNeeded as never,
-        farmVisitExpertise: (formData.get("farmVisitExpertise") as string) || null,
+        farmVisitExpertise,
         farmVisitTrainerType: (formData.get("farmVisitTrainerType") as string) || null,
         farmVisitInstructions: (formData.get("farmVisitInstructions") as string) || null,
         additionalNotes: (formData.get("additionalNotes") as string) || null,
@@ -207,6 +209,17 @@ export async function submitAdvice(
       data: { status: "ADVICE_SUBMITTED" },
     }),
   ]);
+
+  // A Trainer flagging a Farm Visit as needed (or possibly needed) opens the
+  // Farm Visit record for Admin to act on — it does not assign anyone yet.
+  if (farmVisitNeeded === "YES" || farmVisitNeeded === "MAYBE") {
+    const existingVisit = await prisma.farmVisit.findUnique({ where: { caseId } });
+    if (!existingVisit) {
+      await prisma.farmVisit.create({
+        data: { caseId, requiredExpertise: farmVisitExpertise, visitStatus: "REQUIRED" },
+      });
+    }
+  }
 
   revalidatePath("/trainer/cases");
   revalidatePath(`/trainer/cases/${caseId}/advice`);

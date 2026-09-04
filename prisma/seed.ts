@@ -272,6 +272,14 @@ async function main() {
     },
   });
 
+  await prisma.farmVisit.create({
+    data: {
+      caseId: case4.id,
+      requiredExpertise: case4.requiredExpertise,
+      visitStatus: "REQUIRED",
+    },
+  });
+
   console.log("Seed complete.");
   console.log("Admin login:   admin@afrijwi.test / admin123");
   console.log("Trainer login: eric@afrijwi.test / trainer123");

@@ -98,6 +98,10 @@ export async function createCase(_prev: ActionState, formData: FormData): Promis
     },
   });
 
+  if (created.farmVisitRequired) {
+    await ensureFarmVisit(created.id, created.requiredExpertise);
+  }
+
   revalidatePath("/admin/cases");
   redirect(`/admin/cases/${created.id}`);
 }
@@ -267,4 +271,96 @@ export async function updateTrainerPilotIncentive(
 
   revalidatePath(`/admin/trainers/${trainerId}`);
   return { success: true };
+}
+
+// ---------------------------------------------------------------------------
+// Farm Visits
+// ---------------------------------------------------------------------------
+
+/** Creates the FarmVisit row for a Case if one doesn't already exist. Safe to
+ * call multiple times (e.g. once from Case creation, again from Advice). */
+export async function ensureFarmVisit(caseId: string, requiredExpertise?: string) {
+  const existing = await prisma.farmVisit.findUnique({ where: { caseId } });
+  if (existing) return existing;
+
+  return prisma.farmVisit.create({
+    data: { caseId, requiredExpertise: requiredExpertise ?? null, visitStatus: "REQUIRED" },
+  });
+}
+
+export async function createFarmVisitForCase(caseId: string) {
+  await requireAdminSession();
+  const c = await prisma.case.findUnique({ where: { id: caseId } });
+  if (!c) throw new Error("Case not found.");
+
+  const visit = await ensureFarmVisit(caseId, c.requiredExpertise);
+  await prisma.case.update({ where: { id: caseId }, data: { status: "VISIT_REQUIRED" } });
+
+  revalidatePath(`/admin/cases/${caseId}`);
+  redirect(`/admin/farm-visits/${visit.id}`);
+}
+
+export async function startSearchingForVisit(farmVisitId: string) {
+  await requireAdminSession();
+  await prisma.farmVisit.update({ where: { id: farmVisitId }, data: { visitStatus: "SEARCHING" } });
+  revalidatePath(`/admin/farm-visits/${farmVisitId}`);
+}
+
+export async function assignFarmVisitTrainer(farmVisitId: string, trainerId: string) {
+  await requireAdminSession();
+  await prisma.farmVisit.update({
+    where: { id: farmVisitId },
+    data: { assignedTrainerId: trainerId, visitStatus: "ASSIGNED" },
+  });
+  revalidatePath(`/admin/farm-visits/${farmVisitId}`);
+  revalidatePath("/admin/farm-visits");
+}
+
+export async function scheduleFarmVisit(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  await requireAdminSession();
+  const farmVisitId = String(formData.get("farmVisitId"));
+  const proposedDate = formData.get("proposedDate") as string;
+
+  await prisma.farmVisit.update({
+    where: { id: farmVisitId },
+    data: {
+      visitStatus: "SCHEDULED",
+      proposedDate: proposedDate ? new Date(proposedDate) : null,
+      notes: (formData.get("notes") as string) || null,
+    },
+  });
+
+  revalidatePath(`/admin/farm-visits/${farmVisitId}`);
+  revalidatePath("/admin/farm-visits");
+  return { success: true };
+}
+
+export async function completeFarmVisit(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  await requireAdminSession();
+  const farmVisitId = String(formData.get("farmVisitId"));
+
+  const visit = await prisma.farmVisit.update({
+    where: { id: farmVisitId },
+    data: {
+      visitStatus: "COMPLETED",
+      completedDate: new Date(),
+      notes: (formData.get("notes") as string) || null,
+    },
+  });
+
+  revalidatePath(`/admin/farm-visits/${farmVisitId}`);
+  revalidatePath("/admin/farm-visits");
+  revalidatePath(`/admin/cases/${visit.caseId}`);
+  return { success: true };
+}
+
+export async function cancelFarmVisit(farmVisitId: string) {
+  await requireAdminSession();
+  const visit = await prisma.farmVisit.update({
+    where: { id: farmVisitId },
+    data: { visitStatus: "CANCELLED" },
+  });
+  revalidatePath(`/admin/farm-visits/${farmVisitId}`);
+  revalidatePath("/admin/farm-visits");
+  revalidatePath(`/admin/cases/${visit.caseId}`);
 }
