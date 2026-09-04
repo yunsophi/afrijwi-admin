@@ -247,6 +247,31 @@ async function main() {
     },
   });
 
+  // Case #4 — just sent to Eric, awaiting Accept/Decline
+  const case4 = await prisma.case.create({
+    data: {
+      farmerId: aliceFarmer.id,
+      category: "LIVESTOCK",
+      title: "Goat has a swollen leg",
+      description:
+        "One goat has had a swollen front leg for three days and is limping. No sign of an open wound.",
+      urgency: "NORMAL",
+      district: "Nyanza",
+      sector: "Busasamana",
+      requiredExpertise: JSON.stringify(["LIVESTOCK", "ANIMAL_HEALTH"]),
+      farmVisitRequired: true,
+      status: "SENT_TO_TRAINER",
+    },
+  });
+
+  await prisma.trainerAssignment.create({
+    data: {
+      caseId: case4.id,
+      trainerId: eric.id,
+      status: "SENT",
+    },
+  });
+
   console.log("Seed complete.");
   console.log("Admin login:   admin@afrijwi.test / admin123");
   console.log("Trainer login: eric@afrijwi.test / trainer123");
