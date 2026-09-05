@@ -106,12 +106,20 @@ export async function createCase(_prev: ActionState, formData: FormData): Promis
   redirect(`/admin/cases/${created.id}`);
 }
 
-export async function updateCaseStatus(caseId: string, status: string) {
+/** Manual override — lets Admin correct or revert a Case's status directly
+ * (e.g. back to In Progress after a wrong click), separate from the guided
+ * workflow actions above. */
+export async function updateCaseStatus(_prev: ActionState, formData: FormData): Promise<ActionState> {
   await requireAdminSession();
+  const caseId = String(formData.get("caseId"));
+  const status = String(formData.get("status"));
+
   await prisma.case.update({ where: { id: caseId }, data: { status: status as never } });
+
   revalidatePath(`/admin/cases/${caseId}`);
   revalidatePath("/admin/cases");
   revalidatePath("/admin");
+  return { success: true };
 }
 
 // ---------------------------------------------------------------------------

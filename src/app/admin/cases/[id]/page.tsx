@@ -14,6 +14,7 @@ import { createFarmVisitForCase } from "@/lib/actions/admin";
 import { AdviceReviewActions } from "./AdviceReviewActions";
 import { EscalateForm } from "./EscalateForm";
 import { FeedbackForm } from "./FeedbackForm";
+import { CaseStatusForm } from "./CaseStatusForm";
 
 export default async function CaseDetailPage({
   params,
@@ -58,6 +59,14 @@ export default async function CaseDetailPage({
         </div>
         <StatusBadge status={c.status} />
       </div>
+
+      <Section title="Status">
+        <p className="mb-3 text-xs text-slate-500">
+          Manual override — use this to correct a mistake or revert a status (e.g. back to In
+          Progress), independent of the guided actions below.
+        </p>
+        <CaseStatusForm caseId={c.id} currentStatus={c.status} />
+      </Section>
 
       {/* Farmer — Admin sees full identity; this is never exposed to Trainers. */}
       <Section title="Farmer">
