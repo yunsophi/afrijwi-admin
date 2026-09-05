@@ -4,6 +4,9 @@ import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
+  // Required outside Vercel (Render, Railway, Docker, etc.) — Auth.js can't
+  // otherwise verify the incoming Host header is the one it's served from.
+  trustHost: true,
   session: { strategy: "jwt" },
   pages: {
     signIn: "/login",
